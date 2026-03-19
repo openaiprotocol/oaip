@@ -1,0 +1,19 @@
+{
+  "iterations": 5,
+  "validForSeconds": 3600,
+  "cases": [
+    {
+      "id": "tracer_direct_live",
+      "description": "Call deployed tracer.verifyProof on target network",
+      "call": "tracer.verifyProof",
+      "expectedStatus": 1
+    },
+    {
+      "id": "registry_live",
+      "description": "Call deployed registry.verifyAndRecord on target network",
+      "call": "registry.verifyAndRecord",
+      "expectedStatus": 1
+    }
+  ]
+}
+

@@ -11,6 +11,10 @@
     "build:prover-cli": "cargo build --manifest-path prover-cli/Cargo.toml",
     "build:pvm-verifier": "cargo build --manifest-path contracts/pvm_verifier/Cargo.toml --target wasm32-unknown-unknown --no-default-features --features ink-as-dependency",
     "build:pvm-zk-verifier": "bash -lc 'cd contracts/pvm_zk_verifier && cargo +nightly build --release -Z json-target-spec'",
+    "bench": "npx hardhat run bench/run-bench.cjs",
+    "bench:network:testnet": "npx hardhat run --network polkadotHubTestnet bench/run-bench-network.cjs",
+    "bench:summary": "node bench/summarize.cjs",
+    "bench:summary:network": "node bench/summarize.cjs --network",
     "check:all": "npm run test:evm && npm run lint:frontend && npm run build:frontend && npm run build:prover-cli && npm run build:pvm-verifier && npm run build:pvm-zk-verifier"
   },
   "keywords": [],

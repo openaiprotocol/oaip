@@ -8,3 +8,6 @@ frontend/.next/
 .env
 .env.local
 .DS_Store
+bench/results/raw/
+bench/results/latest-summary.md
+bench/results/latest-summary-network.md

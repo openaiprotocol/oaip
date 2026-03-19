@@ -1,0 +1,30 @@
+{
+  "iterations": 10,
+  "cases": [
+    {
+      "id": "registry_valid",
+      "description": "VerificationRegistry.verifyAndRecord success path (mock verifier returns true).",
+      "call": "registry.verifyAndRecord",
+      "expectedStatus": 1
+    },
+    {
+      "id": "registry_invalid",
+      "description": "VerificationRegistry.verifyAndRecord returns false (mock verifier returns false).",
+      "call": "registry.verifyAndRecord",
+      "expectedStatus": 1
+    },
+    {
+      "id": "tracer_direct_valid",
+      "description": "OIAP_Tracer_Caller.verifyProof direct call, mock returns true.",
+      "call": "tracer.verifyProof",
+      "expectedStatus": 1
+    },
+    {
+      "id": "tracer_direct_invalid",
+      "description": "OIAP_Tracer_Caller.verifyProof direct call, mock returns false.",
+      "call": "tracer.verifyProof",
+      "expectedStatus": 1
+    }
+  ]
+}
+
