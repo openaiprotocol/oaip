@@ -11,7 +11,7 @@ import "./pvm_zk_verifier/IZKVerifier.sol";
  *   - PVM contracts are accessible at an H160 address via Revive.
  *   - Calldata is ABI-encoded with a standard keccak256 4-byte selector,
  *     matching the Solidity interface in IZKVerifier.sol.
- *   - The PVM contract dispatches on this selector (NOT BLAKE2 — that was ink!).
+ *   - The PVM contract dispatches on this selector (NOT BLAKE2).
  */
 contract OIAP_Tracer_Caller {
 

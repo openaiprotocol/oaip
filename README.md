@@ -16,7 +16,7 @@ The system accepts proof submissions at the EVM layer and dispatches verificatio
 - EVM entrypoint: `contracts/OIAP_Tracer_Caller.sol`
 - Verification and nullifier registry: `contracts/VerificationRegistry.sol`
 - Rust verifiers:
-  - `contracts/pvm_verifier` (ink!/wasm build target)
+  - `contracts/pvm_verifier` (wasm build target)
   - `contracts/pvm_zk_verifier` (polkavm target)
 - CLI tooling: `prover-cli`
 - Frontend: `frontend`

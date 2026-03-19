@@ -1,6 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
-use ink::prelude::vec::Vec;
 use ark_bn254::Bn254;
 use ark_bn254::Fr;
 use ark_ec::bn::{G1Affine, G2Affine};

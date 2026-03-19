@@ -7,8 +7,7 @@ edition = "2021"
 path = "src/lib.rs"
 
 [dependencies]
-# We use ink! as the framework for compiling Rust to Wasm for Substrate/Polkadot Hub.
-ink = { version = "5.0.0", default-features = false }
+# Removed ink! framework (discontinued).
 
 # ZK libraries — no_std compatible
 # We enable `curve` so that BN254 exposes `Bn254`, `Fr`, and `Config` types.

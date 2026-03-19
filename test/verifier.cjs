@@ -11,7 +11,7 @@ describe("OIAP PVM-Native ZK Verifier - EVM Side", function () {
         [owner, addr1] = await ethers.getSigners();
 
         // 1. Deploy the Tracer Caller, pointing it to a mock address that
-        //    would represent our ink! contract deployed manually on Polkadot Hub
+        //    would represent our contract deployed manually on Polkadot Hub
         mockPvmAddress = owner.address; // Macking PVM caller for EVM logic tests
         const Tracer = await ethers.getContractFactory("OIAP_Tracer_Caller");
         tracerCaller = await Tracer.deploy(mockPvmAddress);

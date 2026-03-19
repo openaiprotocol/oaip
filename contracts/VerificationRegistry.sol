@@ -6,7 +6,7 @@ import "./OIAP_Tracer_Caller.sol";
 /// @title VerificationRegistry
 /// @notice Stores successful verification records keyed by nullifier.
 ///         Allows downstream dApps to check if a nullifier was verified
-///         without re-submitting the full proof to the ink! contract.
+///         without re-submitting the full proof to the contract.
 contract VerificationRegistry {
 
     struct VerificationRecord {
