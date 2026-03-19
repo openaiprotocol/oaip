@@ -7,7 +7,7 @@ edition = "2021"
 path = "src/lib.rs"
 
 [dependencies]
-# Removed ink! framework (discontinued).
+
 
 # ZK libraries — no_std compatible
 # We enable `curve` so that BN254 exposes `Bn254`, `Fr`, and `Config` types.
@@ -20,7 +20,6 @@ ark-ff          = { version = "0.4", default-features = false }
 [features]
 default = ["std"]
 std = [
-    "ink/std",
     "ark-bn254/std",
     "ark-groth16/std",
     "ark-serialize/std",
