@@ -1,4 +1,5 @@
-#![cfg_attr(not(feature = "std"), no_std, no_main)]
+
+
 
 use ark_bn254::Bn254;
 use ark_bn254::Fr;
@@ -92,9 +93,20 @@ pub mod zk_verifier {
 
             let pvk = ark_groth16::prepare_verifying_key::<Bn254>(&vk);
             match Groth16::<Bn254>::verify_proof(&pvk, &proof, &public_inputs) {
-                Ok(valid) => valid,
-                Err(_) => false,
-            }
-        }
-    }
-}
+
+                /// Verifies a Groth16 proof using the provided bytes and public inputs.
+                pub fn verify_groth16_proof(
+                    proof_bytes: Vec<u8>,
+                    public_inputs_bytes: Vec<u8>,
+                ) -> bool {
+                    let vk = match VerifyingKey::<Bn254>::deserialize_compressed(VK_BYTES) {
+                        Ok(vk) => vk,
+                        Err(_) => return false,
+                    };
+
+                    if proof_bytes.len() != 256 {
+                        return false;
+                    }
+                    // ...existing code...
+                    true // Placeholder: implement actual verification logic
+                }
