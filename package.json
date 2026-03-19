@@ -1,10 +1,17 @@
 {
   "name": "oiap-pvm-verifier",
   "version": "1.0.0",
-  "description": "",
+  "description": "Cross-VM Groth16 verifier using Solidity + Rust (PVM).",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npx hardhat test",
+    "test:evm": "npx hardhat test",
+    "build:frontend": "npm --prefix frontend run build",
+    "lint:frontend": "npm --prefix frontend run lint",
+    "build:prover-cli": "cargo build --manifest-path prover-cli/Cargo.toml",
+    "build:pvm-verifier": "cargo build --manifest-path contracts/pvm_verifier/Cargo.toml --target wasm32-unknown-unknown --no-default-features --features ink-as-dependency",
+    "build:pvm-zk-verifier": "bash -lc 'cd contracts/pvm_zk_verifier && cargo +nightly build --release -Z json-target-spec'",
+    "check:all": "npm run test:evm && npm run lint:frontend && npm run build:frontend && npm run build:prover-cli && npm run build:pvm-verifier && npm run build:pvm-zk-verifier"
   },
   "keywords": [],
   "author": "",

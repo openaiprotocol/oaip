@@ -1,66 +1,88 @@
-# PVM-Native ZK Identity Verifier
+# OAIP PVM Verifier
 
-Built for the **Polkadot Solidity Hackathon 2026**.
+Production-oriented cross-VM verification stack for Groth16 proofs, combining:
 
-## Overview
+- Solidity contracts as the EVM entrypoint and registry
+- Rust verifier execution in PVM-compatible targets
+- A Rust CLI for proof/key conversion and frontend bridge generation
+- A Next.js frontend for operator workflows
 
-This project implements a high-performance, cost-effective ZK proof verification system on Polkadot Hub. It leverages the **Polkadot Virtual Machine (PVM)** to execute native Rust cryptography (`arkworks`) at near-hardware speeds, making it significantly cheaper than verifying proofs directly in the EVM.
+Repository: [openaiprotocol/oaip](https://github.com/openaiprotocol/oaip)
 
-A Solidity smart contract on the EVM side acts as the entry point, performing a **cross-VM call** to a Rust ink! contract running in the PVM.
+## Architecture
 
-## Project Structure
+The system accepts proof submissions at the EVM layer and dispatches verification to a Rust verifier through cross-VM call boundaries.
 
-- `/contracts/pvm_verifier`: Rust ink! contract for Groth16 verification.
-- `/contracts`: Solidity contracts (`OIAP_Tracer_Caller.sol`, `VerificationRegistry.sol`).
-- `/prover-cli`: Rust binary to generate mock/real ZK proofs.
-- `/frontend`: Next.js application for the verifier interface.
-- `/test`: Hardhat tests for the EVM side.
+- EVM entrypoint: `contracts/OIAP_Tracer_Caller.sol`
+- Verification and nullifier registry: `contracts/VerificationRegistry.sol`
+- Rust verifiers:
+  - `contracts/pvm_verifier` (ink!/wasm build target)
+  - `contracts/pvm_zk_verifier` (polkavm target)
+- CLI tooling: `prover-cli`
+- Frontend: `frontend`
 
-## Key Features
+Detailed flow is documented in `ARCHITECTURE.md`.
 
-- **PVM Acceleration**: Shifts heavy pairing math from EVM gas-metered execution to PVM native execution.
-- **Cross-VM Interoperability**: Demonstrates Polkadot Hub's unique ability to bridge EVM and PVM contexts.
-- **Zero-Knowledge Identity**: Foundational layer for the Open Identity & Attestation Protocol (OIAP).
+## Prerequisites
 
-## Getting Started
+- Node.js 20+
+- npm 10+
+- Rust stable and nightly toolchains
+- Rust target: `wasm32-unknown-unknown`
+- Nightly component: `rust-src`
 
-### Prerequisites
-
-- Rust (with `wasm32-unknown-unknown` target)
-- Node.js & npm
-- Hardhat
-- (Optional) `cargo-contract` for ink! deployment
-
-### Installation
+Suggested setup:
 
 ```bash
-# Clone the repository
-git clone https://github.com/provd/oiap
-cd oiap
-
-# Install EVM dependencies
-npm install
-
-# Build the ink! contract
-cd contracts/pvm_verifier
-cargo build --target wasm32-unknown-unknown --no-default-features --features ink-as-dependency
+rustup toolchain install nightly
+rustup component add rust-src --toolchain nightly
+rustup target add wasm32-unknown-unknown
 ```
 
-### Running Tests
+## Installation
 
 ```bash
-# Run EVM side tests
-npx hardhat test
+git clone https://github.com/openaiprotocol/oaip.git
+cd oaip
+npm install
+```
 
-# Run explicit mock prover output
+## Local Verification Commands
+
+Run all essential checks:
+
+```bash
+npm run check:all
+```
+
+Or run by scope:
+
+```bash
+# EVM contracts and tests
+npm run test:evm
+
+# Frontend
+npm run lint:frontend
+npm run build:frontend
+
+# Rust CLI
+npm run build:prover-cli
+
+# Rust verifiers
+npm run build:pvm-verifier
+npm run build:pvm-zk-verifier
+```
+
+## CLI Workflows
+
+### 1) Mock generation (explicit only)
+
+```bash
 cd prover-cli
 cargo run -- generate --mock --secret 0x123 --cooperative 42 --epoch 1740000000
 ```
 
-### Generate Real `verification_key.bin`
-
-`prover-cli` can convert a snarkjs verification key JSON into the binary format
-embedded by both Rust verifiers (`include_bytes!`):
+### 2) Convert `verification_key.json` to `verification_key.bin`
 
 ```bash
 cd prover-cli
@@ -69,15 +91,12 @@ cargo run -- vk-to-bin \
   --check
 ```
 
-By default this writes to:
+Outputs:
 
 - `contracts/pvm_verifier/keys/verification_key.bin`
 - `contracts/pvm_zk_verifier/keys/verification_key.bin`
 
-### Build Frontend Bridge Inputs From snarkjs
-
-Convert snarkjs `proof.json` + `public.json` into the exact frontend fields
-expected by `VerificationRegistry.verifyAndRecord(...)`:
+### 3) Convert snarkjs proof/public signals into frontend bridge JSON
 
 ```bash
 cd prover-cli
@@ -88,14 +107,22 @@ cargo run -- proof-to-bridge \
   --write-frontend
 ```
 
-This emits JSON to stdout and writes `frontend/public/verifier-inputs.json` when
-`--write-frontend` is set. The frontend has a `Load Generated Inputs` button
-that fetches this file and pre-fills the form.
+This writes `frontend/public/verifier-inputs.json`, which can be loaded from the frontend using **Load Generated Inputs**.
 
-## Architecture
+## CI
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for a detailed breakdown of the cross-VM data flow.
+GitHub Actions is configured to run:
 
-## Gas Benchmarks
+- Hardhat tests
+- Frontend lint + production build
+- `prover-cli` build
+- `pvm_verifier` wasm build
+- `pvm_zk_verifier` nightly polkavm build
 
-Initial estimates show a **95% reduction** in gas costs compared to EVM-native Groth16 verification. See [BENCHMARKS.md](./BENCHMARKS.md) for details.
+See `.github/workflows/ci.yml`.
+
+## Operational Notes
+
+- `VerificationRegistry` packs scalar public inputs in little-endian bytes32 form for deterministic Arkworks decoding compatibility.
+- Frontend requires `NEXT_PUBLIC_REGISTRY_ADDRESS` to point to a deployed `VerificationRegistry`.
+- For deployment pipeline details, see `scripts/deploy.sh`.

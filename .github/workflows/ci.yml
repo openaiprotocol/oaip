@@ -1,0 +1,69 @@
+name: ci
+
+on:
+  push:
+    branches: ["master", "main"]
+  pull_request:
+    branches: ["master", "main"]
+
+jobs:
+  evm-tests:
+    name: EVM Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - name: Install dependencies
+        run: npm ci
+      - name: Run Hardhat tests
+        run: npm run test:evm
+
+  frontend:
+    name: Frontend Lint and Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint frontend
+        run: npm run lint:frontend
+      - name: Build frontend
+        run: npm run build:frontend
+
+  prover-cli:
+    name: Prover CLI Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build prover-cli
+        run: npm run build:prover-cli
+
+  pvm-verifier:
+    name: PVM Verifier wasm Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Build pvm_verifier
+        run: npm run build:pvm-verifier
+
+  pvm-zk-verifier:
+    name: PVM ZK Verifier polkavm Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+      - name: Build pvm_zk_verifier
+        run: npm run build:pvm-zk-verifier
