@@ -15,40 +15,8 @@ pub mod zk_verifier {
 
     #[ink(storage)]
     pub struct ZkVerifier {
-        owner: AccountId,
-    }
-
-    #[ink(event)]
-    pub struct VerificationAttempt {
-        #[ink(topic)]
-        caller: AccountId,
-        result: bool,
-    }
-
-    impl ZkVerifier {
-        #[ink(constructor)]
-        pub fn new() -> Self {
-            Self {
-                owner: Self::env().caller(),
-            }
-        }
-
-        #[ink(message)]
-        pub fn verify(
-            &self,
-            proof_bytes: Vec<u8>,
-            public_inputs_bytes: Vec<u8>,
-        ) -> bool {
-            let result = self.verify_internal(proof_bytes, public_inputs_bytes);
-            self.env().emit_event(VerificationAttempt {
-                caller: self.env().caller(),
-                result,
-            });
-            result
-        }
-
-        fn verify_internal(
-            &self,
+        /// Verifies a Groth16 proof using the provided bytes and public inputs.
+        pub fn verify_groth16_proof(
             proof_bytes: Vec<u8>,
             public_inputs_bytes: Vec<u8>,
         ) -> bool {
@@ -60,7 +28,6 @@ pub mod zk_verifier {
             if proof_bytes.len() != 256 {
                 return false;
             }
-            
             let proof_a = match G1Affine::<ark_bn254::Config>::deserialize_compressed(&proof_bytes[0..64]) {
                 Ok(p) => p,
                 Err(_) => return false,
@@ -93,20 +60,8 @@ pub mod zk_verifier {
 
             let pvk = ark_groth16::prepare_verifying_key::<Bn254>(&vk);
             match Groth16::<Bn254>::verify_proof(&pvk, &proof, &public_inputs) {
-
-                /// Verifies a Groth16 proof using the provided bytes and public inputs.
-                pub fn verify_groth16_proof(
-                    proof_bytes: Vec<u8>,
-                    public_inputs_bytes: Vec<u8>,
-                ) -> bool {
-                    let vk = match VerifyingKey::<Bn254>::deserialize_compressed(VK_BYTES) {
-                        Ok(vk) => vk,
-                        Err(_) => return false,
-                    };
-
-                    if proof_bytes.len() != 256 {
-                        return false;
-                    }
-                    // ...existing code...
-                    true // Placeholder: implement actual verification logic
-                }
+                Ok(valid) => valid,
+                Err(_) => false,
+            }
+        }
+            };
