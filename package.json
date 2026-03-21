@@ -9,7 +9,7 @@
     "build:frontend": "npm --prefix frontend run build",
     "lint:frontend": "npm --prefix frontend run lint",
     "build:prover-cli": "cargo build --manifest-path prover-cli/Cargo.toml",
-    "build:pvm-verifier": "cargo build --manifest-path contracts/pvm_verifier/Cargo.toml --target wasm32-unknown-unknown --no-default-features --features ink-as-dependency",
+    "build:pvm-verifier": "cargo build --manifest-path contracts/pvm_verifier/Cargo.toml --target wasm32-unknown-unknown --no-default-features",
     "build:pvm-zk-verifier": "bash -lc 'cd contracts/pvm_zk_verifier && cargo +nightly build --release -Z json-target-spec'",
     "bench": "npx hardhat run bench/run-bench.cjs",
     "bench:network:testnet": "npx hardhat run --network polkadotHubTestnet bench/run-bench-network.cjs",
@@ -19,7 +19,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.2",
     "dotenv": "^17.3.1",
