@@ -160,7 +160,7 @@ export default function Home() {
           OIAP PVM-Native ZK Verifier
         </h1>
         <p className="text-center mb-12 text-gray-400">
-          Validating Cooperative Membership zero-knowledge proofs on Polkadot Hub using cross-VM calls to Rust ink!
+          Validating Cooperative Membership zero-knowledge proofs on Polkadot Hub using cross-VM calls to native Rust (Polkavm / pallet-revive)
         </p>
 
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 max-w-2xl mx-auto shadow-2xl">
@@ -270,7 +270,7 @@ export default function Home() {
         <div className="mt-16 bg-gray-900 border border-gray-800 p-6 rounded-lg text-xs font-mono text-gray-500">
           <p>Phase 1 Tracer Sprint: Demoing EVM to Wasm cross-compilation pipeline.</p>
           <p>Target Network: Polkadot Hub Testnet (Westend Asset Hub)</p>
-          <p>PVM Framework: ink! 5.x</p>
+          <p>PVM Framework: pallet-revive (native Rust, RISC-V)</p>
         </div>
       </div>
     </main>
