@@ -57,7 +57,7 @@ use alloy_sol_types::SolCall;
 use ark_bn254::Bn254;
 use ark_bn254::Fr;
 use ark_ec::bn::{G1Affine, G2Affine};
-use ark_groth16::{Groth16, Proof, VerifyingKey};
+use ark_groth16::{Groth16, PreparedVerifyingKey, Proof, VerifyingKey};
 use ark_serialize::CanonicalDeserialize;
 
 // Verification key embedded at compile time.
@@ -68,6 +68,42 @@ const VK_BYTES: &[u8] = include_bytes!("../keys/verification_key.bin");
 // This gives us `IZKVerifier::verifyCall::SELECTOR` (keccak256-based, 4 bytes).
 sol!("IZKVerifier.sol");
 
+// ─── Max calldata guard ───────────────────────────────────────────────────────
+// A Groth16 proof is 256 bytes; 4 public inputs are 4×32 = 128 bytes.
+// ABI overhead for two dynamic `bytes` is 4 (selector) + 64 (offsets) + 64 (lengths)
+// = 132 bytes of overhead. Any calldata beyond 256 KiB is pathological and
+// risks exhausting our 1 MiB static heap.
+const MAX_CALLDATA_BYTES: usize = 256 * 1024; // 256 KiB
+
+// ─── PVK cache ───────────────────────────────────────────────────────────────
+// In Polkavm's execution model each cross-VM `call()` is a fresh execution
+// context, so a static is re-initialised every call.  The gain here is that
+// within a single execution (if the verifier is called multiple times from one
+// caller contract, or in future batched-verification scenarios) we deserialise
+// the VK and run `prepare_verifying_key` only once.
+//
+// Safety: `pallet-revive` guarantees single-threaded execution; there is no
+// concurrency inside a PVM contract invocation.
+static mut PVK_CACHE: Option<PreparedVerifyingKey<Bn254>> = None;
+static mut PVK_INITIALISED: bool = false;
+
+/// Returns a reference to the cached `PreparedVerifyingKey`, initialising it
+/// on the first call.  Returns `None` if the embedded VK bytes are malformed.
+///
+/// # Safety
+/// Must only be called from within the single-threaded PVM execution context.
+unsafe fn get_pvk() -> Option<&'static PreparedVerifyingKey<Bn254>> {
+    if !PVK_INITIALISED {
+        PVK_INITIALISED = true;
+        PVK_CACHE = VerifyingKey::<Bn254>::deserialize_compressed(VK_BYTES)
+            .ok()
+            .map(|vk| ark_groth16::prepare_verifying_key::<Bn254>(&vk));
+    }
+    // SAFETY: we only ever create one shared ref at a time (single-threaded);
+    // the static is never mutated after initialisation within this call.
+    unsafe { (*core::ptr::addr_of!(PVK_CACHE)).as_ref() }
+}
+
 // ─── Contract entrypoints ─────────────────────────────────────────────────────
 
 /// Called by pallet-revive when an existing contract is invoked.
@@ -76,8 +112,26 @@ pub extern "C" fn call() {
     // Step 1: Read the calldata length from the host.
     let len = api::call_data_size() as usize;
 
+    // Guard against pathologically large calldata that could exhaust the heap.
+    if len == 0 || len > MAX_CALLDATA_BYTES {
+        api::return_value(
+            ReturnFlags::REVERT,
+            if len == 0 {
+                b"calldata empty"
+            } else {
+                b"calldata too large"
+            },
+        );
+        // api::return_value() does not return; `return` here is unreachable
+        // but retained for clarity when reading the code path.
+        #[allow(unreachable_code)]
+        return;
+    }
+
     if len < 4 {
         api::return_value(ReturnFlags::REVERT, b"calldata too short");
+        #[allow(unreachable_code)]
+        return;
     }
 
     // Step 2: Copy calldata into our heap-allocated buffer.
@@ -116,23 +170,15 @@ pub extern "C" fn deploy() {
 /// Deserialise and verify a Groth16 proof.
 ///
 /// Expected layout of `input` (post-selector, ABI-encoded):
-///   [0..64]   proof_a  — G1 compressed
-///   [64..192] proof_b  — G2 compressed
-///   [192..256] proof_c — G1 compressed
-///   [256..]   public_inputs — n×32-byte Fr field elements
+///   word0: offset_to_proof  (uint256 big-endian)
+///   word1: offset_to_public (uint256 big-endian)
+///   at offset_to_proof:
+///     word: proof_len  (uint256)
+///     bytes: proof bytes (padded to next 32 bytes)
+///   at offset_to_public:
+///     word: public_len (uint256)
+///     bytes: public input bytes (padded to next 32 bytes)
 fn verify_proof(input: &[u8]) -> bool {
-    // The calldata payload is ABI-encoded for:
-    //   verify(bytes proofBytes, bytes publicInputs)
-    //
-    // Layout (after the 4-byte selector):
-    //   word0: offset_to_proof (uint256, big-endian)
-    //   word1: offset_to_public_inputs (uint256, big-endian)
-    //   at offset_to_proof:
-    //     word: proof_len (uint256)
-    //     bytes: proof bytes (padded to 32 bytes)
-    //   at offset_to_public_inputs:
-    //     word: public_len (uint256)
-    //     bytes: public input bytes (padded to 32 bytes)
     if input.len() < 64 {
         return false;
     }
@@ -190,10 +236,11 @@ fn verify_proof(input: &[u8]) -> bool {
         return false;
     }
 
-    // Deserialise verification key embedded at compile time.
-    let vk = match VerifyingKey::<Bn254>::deserialize_compressed(VK_BYTES) {
-        Ok(v) => v,
-        Err(_) => return false,
+    // Obtain the cached PreparedVerifyingKey.
+    // SAFETY: single-threaded PVM execution context.
+    let pvk = match unsafe { get_pvk() } {
+        Some(p) => p,
+        None => return false,
     };
 
     // Parse proof components.
@@ -201,14 +248,16 @@ fn verify_proof(input: &[u8]) -> bool {
         Ok(p) => p,
         Err(_) => return false,
     };
-    let proof_b = match G2Affine::<ark_bn254::Config>::deserialize_compressed(&proof_bytes[64..192]) {
-        Ok(p) => p,
-        Err(_) => return false,
-    };
-    let proof_c = match G1Affine::<ark_bn254::Config>::deserialize_compressed(&proof_bytes[192..256]) {
-        Ok(p) => p,
-        Err(_) => return false,
-    };
+    let proof_b =
+        match G2Affine::<ark_bn254::Config>::deserialize_compressed(&proof_bytes[64..192]) {
+            Ok(p) => p,
+            Err(_) => return false,
+        };
+    let proof_c =
+        match G1Affine::<ark_bn254::Config>::deserialize_compressed(&proof_bytes[192..256]) {
+            Ok(p) => p,
+            Err(_) => return false,
+        };
 
     let proof = Proof::<Bn254> {
         a: proof_a.into(),
@@ -233,8 +282,7 @@ fn verify_proof(input: &[u8]) -> bool {
     }
 
     // Execute Groth16 pairing verification — this is the PVM-native computation.
-    let pvk = ark_groth16::prepare_verifying_key::<Bn254>(&vk);
-    match Groth16::<Bn254>::verify_proof(&pvk, &proof, &public_inputs) {
+    match Groth16::<Bn254>::verify_proof(pvk, &proof, &public_inputs) {
         Ok(valid) => valid,
         Err(_) => false,
     }
