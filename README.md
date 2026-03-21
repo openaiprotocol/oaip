@@ -1,37 +1,54 @@
-# OAIP PVM Verifier
+# OIAP PVM Verifier
 
-Production-oriented cross-VM verification stack for Groth16 proofs, combining:
+Production-grade cross-VM Groth16 proof verification stack running on **Polkadot Hub**. It bridges the EVM execution model (Solidity) with native Rust Polkavm execution (`pallet-revive`), enabling cryptographic pairing operations to run in a verified, language-native environment while exposing a standard Solidity interface.
 
-- Solidity contracts as the EVM entrypoint and registry
-- Rust verifier execution in PVM-compatible targets
-- A Rust CLI for proof/key conversion and frontend bridge generation
-- A Next.js frontend for operator workflows
+---
 
-Repository: [openaiprotocol/oaip](https://github.com/openaiprotocol/oaip)
+## What Is This?
+
+The OIAP PVM Verifier lets any EVM-compatible dApp on Polkadot Hub verify a Groth16 zero-knowledge proof with a single contract call, without implementing any ZK cryptography in Solidity. The heavy lifting — elliptic curve pairing over BN254 — runs in native Rust inside the Polkavm execution environment via `pallet-revive`'s cross-VM calling mechanism.
+
+**Use case:** Cooperative membership verification. A member proves knowledge of a secret that satisfies a circuit (cooperative ID, validity window), and the protocol verifies and permanently records it on-chain without revealing the underlying data.
+
+---
 
 ## Architecture
 
-The system accepts proof submissions at the EVM layer and dispatches verification to a Rust verifier through cross-VM call boundaries.
+```
+User
+ │
+ ▼
+Next.js Frontend (TypeScript)
+ │  submits: proofBytes, nullifier, cooperativeHash, validUntil, currentTime
+ ▼
+VerificationRegistry.sol  (EVM, Solidity)
+ │  checks: expiry, nullifier replay
+ │  encodes: Fr field elements as LE bytes32
+ ▼
+OIAP_Tracer_Caller.sol  (EVM, Solidity)
+ │  staticcall via H160 address
+ ▼
+pvm_zk_verifier  (Polkavm, native Rust — pallet-revive)
+ │  ABI dispatch on keccak256 selector
+ │  Groth16 pairing: arkworks / ark-bn254
+ │  VK embedded at compile time
+ ▼
+bool result → bubbles back → VerificationRegistry records nullifier
+```
 
-- EVM entrypoint: `contracts/OIAP_Tracer_Caller.sol`
-- Verification and nullifier registry: `contracts/VerificationRegistry.sol`
-- Rust verifiers:
-  - `contracts/pvm_verifier` (wasm build target)
-  - `contracts/pvm_zk_verifier` (polkavm target)
-- CLI tooling: `prover-cli`
-- Frontend: `frontend`
+Detailed data flow and encoding specification: [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 
-Detailed flow is documented in `ARCHITECTURE.md`.
 
 ## Prerequisites
 
-- Node.js 20+
-- npm 10+
-- Rust stable and nightly toolchains
-- Rust target: `wasm32-unknown-unknown`
-- Nightly component: `rust-src`
-
-Suggested setup:
+| Tool | Version |
+|---|---|
+| Node.js | 20+ |
+| npm | 10+ |
+| Rust stable | latest |
+| Rust nightly | required for `pvm_zk_verifier` Polkavm target |
+| Rust target | `wasm32-unknown-unknown` |
+| Nightly component | `rust-src` |
 
 ```bash
 rustup toolchain install nightly
@@ -39,64 +56,93 @@ rustup component add rust-src --toolchain nightly
 rustup target add wasm32-unknown-unknown
 ```
 
-## Installation
+---
+
+## Quick Start
 
 ```bash
 git clone https://github.com/openaiprotocol/oaip.git
 cd oaip
 npm install
-```
 
-## Local Verification Commands
-
-Run all essential checks:
-
-```bash
+# Run all checks (EVM tests, lint, frontend build, all Rust builds)
 npm run check:all
 ```
 
-Or run by scope:
+---
+
+## Development Commands
+
+### EVM Contracts
 
 ```bash
-# EVM contracts and tests
+# Compile and run Hardhat tests
 npm run test:evm
+```
 
-# Frontend
+### Frontend
+
+```bash
 npm run lint:frontend
 npm run build:frontend
+```
 
-# Rust CLI
+### Rust: CLI
+
+```bash
 npm run build:prover-cli
 
-# Rust verifiers
+# Also run Rust unit + integration tests
+cargo test --manifest-path prover-cli/Cargo.toml
+```
+
+### Rust: Verifier Library (wasm32)
+
+```bash
 npm run build:pvm-verifier
+
+# Run verifier library unit tests (std mode)
+cargo test --manifest-path contracts/pvm_verifier/Cargo.toml
+```
+
+### Rust: On-Chain Verifier (Polkavm)
+
+```bash
 npm run build:pvm-zk-verifier
 ```
 
+---
+
 ## CLI Workflows
 
-### 1) Mock generation (explicit only)
+### Step 1 — Inspect your circuit's public signal layout
+
+Before converting a proof, verify which index corresponds to each public input:
 
 ```bash
 cd prover-cli
-cargo run -- generate --mock --secret 0x123 --cooperative 42 --epoch 1740000000
-```
-
-### 2) Convert `verification_key.json` to `verification_key.bin`
-
-```bash
-cd prover-cli
-cargo run -- vk-to-bin \
+cargo run -- detect-signals \
   --vk-json /path/to/verification_key.json \
-  --check
+  --public-json /path/to/public.json \
+  --out-config signals_config.json
 ```
 
-Outputs:
+This prints a numbered table of signal values and writes a `signals_config.json` for downstream use.
 
-- `contracts/pvm_verifier/keys/verification_key.bin`
-- `contracts/pvm_zk_verifier/keys/verification_key.bin`
+### Step 2 — Build the Polkavm-ready Verifier Binary
 
-### 3) Convert snarkjs proof/public signals into frontend bridge JSON
+This single command automatically acts on your `verification_key.json`, embeds it in the contract, and compiles the Rust contract into a `.polkavm` file ready for deployment.
+
+```bash
+cd prover-cli
+cargo run -- build \
+  --vk-json /path/to/verification_key.json \
+  --out ./pvm_zk_verifier.polkavm
+```
+
+Outputs `pvm_zk_verifier.polkavm` to your chosen path.
+
+### Step 3 — Convert snarkjs proof into frontend bridge JSON
 
 ```bash
 cd prover-cli
@@ -104,25 +150,73 @@ cargo run -- proof-to-bridge \
   --proof-json /path/to/proof.json \
   --public-json /path/to/public.json \
   --vk-bin ../contracts/pvm_zk_verifier/keys/verification_key.bin \
+  --signals-config signals_config.json \
   --write-frontend
 ```
 
-This writes `frontend/public/verifier-inputs.json`, which can be loaded from the frontend using **Load Generated Inputs**.
+Writes `frontend/public/verifier-inputs.json`. Load it in the UI via **Load Generated Inputs**.
+
+### Mock generation (demo/testing only)
+
+```bash
+cd prover-cli
+cargo run -- generate --mock --secret 0x123 --cooperative 42 --epoch 1740000000
+```
+
+---
+
+## Deployment
+
+```bash
+# Deploy to Polkadot Hub Testnet (Westend Asset Hub)
+# Requires PRIVATE_KEY and POLKADOT_HUB_TESTNET_RPC in .env
+bash scripts/deploy.sh
+```
+
+The frontend requires `NEXT_PUBLIC_REGISTRY_ADDRESS` pointing to the deployed `VerificationRegistry`.
+
+---
+
+## Benchmarks
+
+```bash
+# Local Hardhat benchmarks (gas + latency)
+npm run bench
+npm run bench:summary
+
+# Network benchmarks against a live testnet RPC
+npm run bench:network:testnet
+npm run bench:summary:network
+```
+
+See [`BENCHMARKS.md`](./BENCHMARKS.md) for methodology and publication policy.
+
+---
 
 ## CI
 
-GitHub Actions is configured to run:
+GitHub Actions runs on every push/PR:
 
-- Hardhat tests
+- Hardhat EVM tests
 - Frontend lint + production build
 - `prover-cli` build
-- `pvm_verifier` wasm build
-- `pvm_zk_verifier` nightly polkavm build
+- `pvm_verifier` wasm32 build
+- `pvm_zk_verifier` nightly Polkavm build
 
-See `.github/workflows/ci.yml`.
+---
 
-## Operational Notes
+## Key Design Decisions
 
-- `VerificationRegistry` packs scalar public inputs in little-endian bytes32 form for deterministic Arkworks decoding compatibility.
-- Frontend requires `NEXT_PUBLIC_REGISTRY_ADDRESS` to point to a deployed `VerificationRegistry`.
-- For deployment pipeline details, see `scripts/deploy.sh`.
+| Decision | Rationale |
+|---|---|
+| Verification key embedded at compile time | Eliminates storage reads; VK is immutable per-deployment |
+| `PreparedVerifyingKey` cached at first call | Avoids re-computing affine/pairing setup on every verification |
+| `currentTime` is caller-supplied (not `block.timestamp`) | The ZK circuit commits to `currentTime` as a public input; expiry is enforced by `block.timestamp` in Solidity |
+| Anti-spam `verificationFee` (default 0) | Operator can gate submissions without breaking permissionless defaults |
+| Assembly LE encoding | Saves ~1,200 gas vs. Solidity loop for each `uint256 → bytes32` conversion |
+
+---
+
+## License
+
+MIT

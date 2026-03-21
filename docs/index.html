@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OIAP PVM Verifier — Docs</title>
+  <meta name="description" content="Technical documentation for the OIAP PVM Verifier — on-chain Groth16 ZK proof verification on Polkadot Hub via pallet-revive cross-VM calls." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0d12;
+      --surface:   #13131a;
+      --surface2:  #1a1a24;
+      --border:    #252535;
+      --accent:    #7c6ef5;
+      --accent2:   #e059a8;
+      --text:      #e2e2f0;
+      --muted:     #8888aa;
+      --green:     #34d399;
+      --yellow:    #fbbf24;
+      --red:       #f87171;
+      --radius:    10px;
+      --sidebar-w: 260px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────────────────────── */
+    .sidebar {
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      width: var(--sidebar-w);
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+    }
+
+    .sidebar-logo {
+      padding: 24px 20px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-logo .wordmark {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .sidebar-logo .subtitle {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .sidebar nav { padding: 16px 0; flex: 1; }
+
+    .nav-section {
+      padding: 0 20px 4px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 16px;
+    }
+
+    .sidebar nav a {
+      display: block;
+      padding: 6px 20px;
+      font-size: 13.5px;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color .15s, background .15s;
+      border-left: 2px solid transparent;
+    }
+
+    .sidebar nav a:hover,
+    .sidebar nav a.active {
+      color: var(--text);
+      background: rgba(124,110,245,.08);
+      border-left-color: var(--accent);
+    }
+
+    .sidebar-footer {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* ── Main content ────────────────────────────────────────────────────── */
+    .main {
+      margin-left: var(--sidebar-w);
+      flex: 1;
+      min-height: 100vh;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      background: rgba(13,13,18,.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 48px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 5;
+    }
+
+    .topbar .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: rgba(124,110,245,.15);
+      color: var(--accent);
+      border: 1px solid rgba(124,110,245,.3);
+    }
+
+    .topbar-links { margin-left: auto; display: flex; gap: 16px; }
+
+    .topbar-links a {
+      font-size: 13px;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color .15s;
+    }
+
+    .topbar-links a:hover { color: var(--text); }
+
+    .content {
+      max-width: 840px;
+      margin: 0 auto;
+      padding: 56px 48px 96px;
+    }
+
+    /* ── Hero ────────────────────────────────────────────────────────────── */
+    .hero {
+      margin-bottom: 64px;
+    }
+
+    .hero-eyebrow {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+
+    .hero h1 {
+      font-size: 38px;
+      font-weight: 700;
+      line-height: 1.18;
+      letter-spacing: -.02em;
+      margin-bottom: 16px;
+    }
+
+    .hero h1 .grad {
+      background: linear-gradient(135deg, var(--accent) 30%, var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero p {
+      font-size: 17px;
+      color: var(--muted);
+      max-width: 600px;
+      line-height: 1.7;
+    }
+
+    .hero-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 24px;
+    }
+
+    .pill {
+      font-size: 12px;
+      font-weight: 500;
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+    }
+
+    /* ── Sections ────────────────────────────────────────────────────────── */
+    section { margin-bottom: 72px; scroll-margin-top: 72px; }
+
+    h2 {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -.02em;
+      margin-bottom: 6px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h3 {
+      font-size: 17px;
+      font-weight: 600;
+      margin: 32px 0 10px;
+      color: var(--text);
+    }
+
+    p { margin-bottom: 14px; color: #c8c8de; }
+
+    /* ── Cards ───────────────────────────────────────────────────────────── */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      transition: border-color .2s, box-shadow .2s;
+    }
+
+    .card:hover {
+      border-color: rgba(124,110,245,.4);
+      box-shadow: 0 0 0 1px rgba(124,110,245,.1), 0 8px 32px rgba(0,0,0,.4);
+    }
+
+    .card-icon {
+      margin-bottom: 10px;
+      width: 28px;
+      height: 28px;
+      color: var(--accent);
+    }
+
+    .card-icon svg {
+      width: 28px;
+      height: 28px;
+      stroke: var(--accent);
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .callout-icon {
+      flex-shrink: 0;
+      margin-top: 2px;
+      width: 18px;
+      height: 18px;
+    }
+
+    .callout-icon svg {
+      width: 18px;
+      height: 18px;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+    }
+
+    .callout.info .callout-icon svg { stroke: var(--accent); }
+    .callout.warning .callout-icon svg { stroke: var(--yellow); }
+
+    .card h4 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .card p {
+      font-size: 13px;
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* ── Flow diagram ────────────────────────────────────────────────────── */
+    .flow {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      margin-top: 24px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 2;
+      color: var(--muted);
+      overflow-x: auto;
+    }
+
+    .flow .node {
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .flow .layer {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 2px 0;
+    }
+
+    .flow .arrow { color: var(--accent); }
+    .flow .note  { color: var(--muted); font-size: 12px; margin-left: auto; }
+
+    /* ── Tables ──────────────────────────────────────────────────────────── */
+    .table-wrap { overflow-x: auto; margin: 20px 0; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th {
+      background: var(--surface2);
+      text-align: left;
+      padding: 10px 14px;
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      color: #c8c8de;
+      vertical-align: top;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,.02); }
+
+    td code, th code { background: transparent; }
+
+    /* ── Code blocks ─────────────────────────────────────────────────────── */
+    pre {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      overflow-x: auto;
+      margin: 16px 0;
+    }
+
+    pre code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: #c8c8de;
+      line-height: 1.6;
+    }
+
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+
+    .comment { color: var(--muted); }
+    .kw { color: var(--accent); }
+    .str { color: var(--green); }
+    .fn { color: #60b8f7; }
+
+    /* ── Callout boxes ───────────────────────────────────────────────────── */
+    .callout {
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      margin: 18px 0;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      font-size: 14px;
+    }
+
+    .callout.info {
+      background: rgba(124,110,245,.08);
+      border: 1px solid rgba(124,110,245,.25);
+      color: #b0aae8;
+    }
+
+    .callout.warning {
+      background: rgba(251,191,36,.07);
+      border: 1px solid rgba(251,191,36,.25);
+      color: #e8d880;
+    }
+
+    /* callout-icon styles moved to card-icon block */
+
+    /* ── Step list ───────────────────────────────────────────────────────── */
+    .steps { display: flex; flex-direction: column; gap: 20px; margin-top: 20px; }
+
+    .step {
+      display: grid;
+      grid-template-columns: 32px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .step-num {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .step-body h4 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+    .step-body p  { font-size: 13px; color: var(--muted); margin: 0; }
+
+    /* ── Responsive ──────────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      :root { --sidebar-w: 0px; }
+      .sidebar { display: none; }
+      .main { margin-left: 0; }
+      .content { padding: 32px 20px 64px; }
+      .topbar { padding: 14px 20px; }
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- ── Sidebar ────────────────────────────────────────────────────────────── -->
+<aside class="sidebar">
+
+  <div class="sidebar-logo" style="display:flex;flex-direction:column;align-items:center;gap:10px;padding-bottom:24px;">
+    <img src="assets/oaip_white.png" alt="OAIP Logo" style="width:96px;height:96px;display:block;" />
+    <div class="wordmark" style="text-align:center;">OIAP PVM VERIFIER</div>
+    <div class="subtitle" style="text-align:center;">Technical Documentation</div>
+  </div>
+
+  <nav>
+    <div class="nav-section">Getting Started</div>
+    <a href="#overview" class="active">Overview</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#quickstart">Quick Start</a>
+
+    <div class="nav-section">Contracts</div>
+    <a href="#verification-registry">VerificationRegistry</a>
+    <a href="#tracer-caller">TracerCaller</a>
+    <a href="#pvm-verifier">PVM Verifier (Rust)</a>
+
+    <div class="nav-section">CLI</div>
+    <a href="#detect-signals">detect-signals</a>
+    <a href="#vk-to-bin">vk-to-bin</a>
+    <a href="#proof-to-bridge">proof-to-bridge</a>
+
+    <div class="nav-section">Reference</div>
+    <a href="#data-encoding">Data Encoding</a>
+    <a href="#security">Security Properties</a>
+    <a href="#benchmarks">Benchmarks</a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <a href="https://github.com/openaiprotocol/oaip" style="color:var(--muted);text-decoration:none;">
+      <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.5;vertical-align:middle;margin-right:4px;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>GitHub
+    </a>
+  </div>
+</aside>
+
+<!-- ── Main ───────────────────────────────────────────────────────────────── -->
+<main class="main">
+
+  <div class="topbar">
+    <span style="font-size:13px;font-weight:600;">Docs</span>
+    <span class="badge">v1.0</span>
+    <div class="topbar-links">
+      <a href="https://github.com/openaiprotocol/oaip">GitHub</a>
+      <a href="../BENCHMARKS.md">Benchmarks</a>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- OVERVIEW -->
+    <section id="overview">
+      <div class="hero">
+        <div class="hero-eyebrow">Polkadot Hub · Groth16 · pallet-revive</div>
+        <h1>OIAP <span class="grad">PVM Verifier</span></h1>
+        <p>
+          Production-grade cross-VM Groth16 zero-knowledge proof verification for Polkadot Hub.
+          Solidity contracts handle access control and state; native Rust running in Polkavm
+          via <code>pallet-revive</code> performs the cryptographic pairing on BN254.
+        </p>
+        <div class="hero-pills">
+          <span class="pill">Groth16 / BN254</span>
+          <span class="pill">Solidity + native Rust</span>
+          <span class="pill">pallet-revive</span>
+          <span class="pill">Polkadot Hub</span>
+          <span class="pill">Arkworks 0.4</span>
+          <span class="pill">No ZK in Solidity</span>
+        </div>
+      </div>
+
+      <h2>What Is This?</h2>
+      <p>
+        The OIAP PVM Verifier lets any EVM-compatible dApp on Polkadot Hub verify a Groth16
+        zero-knowledge proof with a single contract call — without implementing any elliptic
+        curve arithmetic in Solidity. The cryptographic work runs as native Rust inside the
+        Polkavm execution environment.
+      </p>
+      <p>
+        <strong>Primary use case:</strong> Cooperative membership proofs. A member generates a
+        Groth16 proof that proves knowledge of a secret satisfying a circuit (cooperative ID,
+        time window, nullifier). The verifier checks it on-chain without learning the secret,
+        then permanently records the nullifier to prevent replay.
+      </p>
+
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+          <h4>Native Rust Pairing</h4>
+          <p>BN254 pairing runs in Polkavm via pallet-revive — no EVM precompile needed.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+          <h4>Replay Protection</h4>
+          <p>Nullifiers recorded on-chain. Each proof can only be verified once.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M9 9.5a2.5 2 0 0 1 3-2c1.4 0 2.5.9 2.5 2s-1.1 2-2.5 2-2.5.9-2.5 2 1.1 2 2.5 2a2.5 2 0 0 0 3-2"/></svg></div>
+          <h4>Anti-Spam Fee</h4>
+          <p>Owner-configurable per-call fee (default 0). Prevents registry bloat.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M4 17l6-6-6-6M12 19h8"/></svg></div>
+          <h4>CLI Tooling</h4>
+          <p>Convert snarkjs artifacts to on-chain format with one command.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ARCHITECTURE -->
+    <section id="architecture">
+      <h2>Architecture</h2>
+      <p>The system uses a layered cross-VM architecture. The EVM layer handles all
+        state transitions; the Polkavm layer handles all cryptography.</p>
+
+      <div class="flow">
+        <div class="layer">
+          <span class="node">User</span>
+          <span class="arrow">──▶</span>
+          <span class="node">Next.js Frontend</span>
+          <span class="note">submits proof + signals</span>
+        </div>
+        <div class="layer" style="margin-left:24px;">
+          <span class="arrow">│</span>
+        </div>
+        <div class="layer">
+          <span class="node">VerificationRegistry.sol</span>
+          <span class="note">expiry check · nullifier guard · LE encoding</span>
+        </div>
+        <div class="layer" style="margin-left:24px;">
+          <span class="arrow">│</span>
+        </div>
+        <div class="layer">
+          <span class="node">OIAP_Tracer_Caller.sol</span>
+          <span class="note">cross-VM staticcall at H160</span>
+        </div>
+        <div class="layer" style="margin-left:24px;">
+          <span class="arrow">│  pallet-revive intercepts</span>
+        </div>
+        <div class="layer">
+          <span class="node">pvm_zk_verifier  (native Rust)</span>
+          <span class="note">Groth16 pairing · arkworks · RISC-V</span>
+        </div>
+        <div class="layer" style="margin-left:24px;">
+          <span class="arrow">│  bool result</span>
+        </div>
+        <div class="layer">
+          <span class="node">VerificationRegistry</span>
+          <span class="note">records nullifier on success</span>
+        </div>
+      </div>
+
+      <h3>Component Overview</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Component</th><th>Language</th><th>Target</th><th>Role</th></tr></thead>
+          <tbody>
+            <tr><td><code>VerificationRegistry.sol</code></td><td>Solidity</td><td>EVM</td><td>State, access control, fee, nullifier registry</td></tr>
+            <tr><td><code>OIAP_Tracer_Caller.sol</code></td><td>Solidity</td><td>EVM</td><td>Cross-VM staticcall dispatcher</td></tr>
+            <tr><td><code>pvm_zk_verifier</code></td><td>Rust</td><td>Polkavm RISC-V</td><td>On-chain Groth16 pairing</td></tr>
+            <tr><td><code>pvm_verifier</code></td><td>Rust</td><td>wasm32</td><td>Shared Groth16 library (with unit tests)</td></tr>
+            <tr><td><code>prover-cli</code></td><td>Rust</td><td>native</td><td>Proof/key conversion CLI</td></tr>
+            <tr><td><code>frontend</code></td><td>TypeScript</td><td>Next.js</td><td>Operator UI</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- QUICK START -->
+    <section id="quickstart">
+      <h2>Quick Start</h2>
+
+      <h3>Prerequisites</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tool</th><th>Version</th></tr></thead>
+          <tbody>
+            <tr><td>Node.js</td><td>20+</td></tr>
+            <tr><td>npm</td><td>10+</td></tr>
+            <tr><td>Rust stable</td><td>latest</td></tr>
+            <tr><td>Rust nightly</td><td>required for pvm_zk_verifier</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <pre><code><span class="comment"># Install Rust nightly + required target</span>
+rustup toolchain install nightly
+rustup component add rust-src --toolchain nightly
+rustup target add wasm32-unknown-unknown
+
+<span class="comment"># Clone and install</span>
+git clone https://github.com/openaiprotocol/oaip.git
+cd oaip
+npm install
+
+<span class="comment"># Run all checks</span>
+npm run check:all</code></pre>
+
+      <h3>End-to-End Proof Submission Flow</h3>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>Generate a proof with snarkjs (or Circom)</h4>
+            <p>Produces <code>proof.json</code>, <code>public.json</code>, and <code>verification_key.json</code>.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>Run <code>detect-signals</code> to verify index layout</h4>
+            <p>Inspect which public signal index maps to nullifier, cooperativeHash, etc.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h4>Convert the verification key with <code>vk-to-bin</code></h4>
+            <p>Outputs compressed Arkworks binary to <code>contracts/*/keys/</code>.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h4>Convert the proof with <code>proof-to-bridge</code></h4>
+            <p>Writes <code>frontend/public/verifier-inputs.json</code> ready for the UI.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-body">
+            <h4>Submit via the frontend or directly</h4>
+            <p>Click <em>Load Generated Inputs</em> then <em>Verify Membership</em> in the UI.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VERIFICATION REGISTRY -->
+    <section id="verification-registry">
+      <h2>VerificationRegistry</h2>
+      <p>The primary EVM entry point. Stores <code>VerificationRecord</code> structs keyed by nullifier.</p>
+
+      <h3>verifyAndRecord</h3>
+      <pre><code><span class="kw">function</span> <span class="fn">verifyAndRecord</span>(
+    bytes calldata proofBytes,
+    bytes32 nullifier,
+    bytes32 cooperativeHash,
+    uint256 validUntil,
+    uint256 currentTime
+) external payable returns (bool)</code></pre>
+
+      <p>Checks expiry against <code>block.timestamp</code>, checks nullifier uniqueness, encodes public
+      inputs, calls the Tracer Caller, and records the result on success.</p>
+
+      <div class="callout info">
+        <span class="callout-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
+        <span><code>currentTime</code> is caller-supplied and passed into the ZK circuit as a committed
+        public input. Expiry enforcement uses <code>block.timestamp</code>, not <code>currentTime</code>.</span>
+      </div>
+
+      <h3>Anti-Spam Fee</h3>
+      <p>The owner can set a per-call fee. Default is 0 (permissionless).</p>
+      <pre><code><span class="comment">// Owner sets fee</span>
+<span class="kw">function</span> <span class="fn">setVerificationFee</span>(uint256 _fee) external onlyOwner
+
+<span class="comment">// Owner withdraws accumulated fees</span>
+<span class="kw">function</span> <span class="fn">withdrawFees</span>() external onlyOwner
+
+<span class="comment">// Check if a nullifier is still within its valid window</span>
+<span class="kw">function</span> <span class="fn">isVerified</span>(bytes32 nullifier) external view returns (bool)</code></pre>
+
+      <h3>VerificationRecord Struct</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>cooperativeHash</code></td><td><code>bytes32</code></td><td>Cooperative identifier (Fr field element, LE)</td></tr>
+            <tr><td><code>verifiedAt</code></td><td><code>uint256</code></td><td>Block timestamp when proof was verified</td></tr>
+            <tr><td><code>validUntil</code></td><td><code>uint256</code></td><td>Proof expiry (unix timestamp)</td></tr>
+            <tr><td><code>verifiedBy</code></td><td><code>address</code></td><td>Caller that submitted the proof</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- TRACER CALLER -->
+    <section id="tracer-caller">
+      <h2>OIAP_Tracer_Caller</h2>
+      <p>Thin EVM adapter that issues the cross-VM <code>staticcall</code> to the Polkavm verifier contract
+      at its H160 address.</p>
+
+      <pre><code><span class="kw">function</span> <span class="fn">verifyProof</span>(
+    bytes calldata proofBytes,
+    bytes calldata publicInputs
+) external returns (bool isVerified)</code></pre>
+
+      <p>Encodes calldata with the keccak256 selector of <code>verify(bytes,bytes)</code>, issues a
+      <code>staticcall</code> to <code>pvmVerifierAddress</code>, and ABI-decodes the returned bool.</p>
+
+      <div class="callout warning">
+        <span class="callout-icon"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+        <span>The PVM contract address must be set correctly at deployment. Reverts if the
+        cross-VM call fails (e.g. wrong address, malformed calldata).</span>
+      </div>
+    </section>
+
+    <!-- PVM VERIFIER -->
+    <section id="pvm-verifier">
+      <h2>PVM Verifier (Native Rust)</h2>
+      <p>Deployed as a native binary on Polkavm via <code>pallet-revive</code>. Compiled with
+      <code>cargo +nightly</code> targeting <code>riscv64emac-unknown-none-polkavm</code>.</p>
+
+      <h3>Entry Points</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Function</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>deploy()</code></td><td>No-op. VK is embedded at compile time.</td></tr>
+            <tr><td><code>call()</code></td><td>Reads calldata, validates size, dispatches on keccak256 selector, returns ABI bool.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Key Implementation Details</h3>
+      <ul style="color:#c8c8de;line-height:2;padding-left:20px;">
+        <li>1 MiB static heap via <code>picoalloc</code> (no OS allocator in <code>no_std</code>)</li>
+        <li>256 KiB calldata guard prevents heap exhaustion</li>
+        <li><code>PreparedVerifyingKey</code> cached in a static on first call</li>
+        <li>ABI decoding is fully manual with bounds validation</li>
+        <li>Returns <code>false</code> on any parse or verification error — never panics</li>
+      </ul>
+    </section>
+
+    <!-- DETECT-SIGNALS -->
+    <section id="detect-signals">
+      <h2>CLI: detect-signals</h2>
+      <p>Inspects a <code>verification_key.json</code> and optional <code>public.json</code> to identify
+      which index corresponds to each public signal, and optionally writes a machine-readable
+      config for downstream use.</p>
+
+      <pre><code>cargo run -- detect-signals \
+  --vk-json /path/to/verification_key.json \
+  --public-json /path/to/public.json \
+  --out-config signals_config.json</code></pre>
+
+      <p>Output:</p>
+      <pre><code>Detected 4 public input(s) from IC array (len=5).
+
+Index  Value
+────────────────────────────────────────────────────────────────────────────────
+[  0]  1234567890...   ← nullifier
+[  1]  9876543210...   ← cooperativeHash
+[  2]  1740000000      ← validUntil
+[  3]  1739996400      ← currentTime</code></pre>
+
+      <div class="callout info">
+        <span class="callout-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
+        <span>The <code>signals_config.json</code> output can be passed to <code>proof-to-bridge</code>
+        via <code>--signals-config</code>, replacing the four individual <code>--*-index</code> flags.</span>
+      </div>
+    </section>
+
+    <!-- VK-TO-BIN -->
+    <section id="vk-to-bin">
+      <h2>CLI: vk-to-bin</h2>
+      <p>Converts a snarkjs <code>verification_key.json</code> into the compressed Arkworks binary format
+      required by both Rust verifiers.</p>
+
+      <pre><code>cargo run -- vk-to-bin \
+  --vk-json /path/to/verification_key.json \
+  --check    <span class="comment"># verify roundtrip serialization</span></code></pre>
+
+      <p>Outputs:</p>
+      <ul style="color:#c8c8de;line-height:2;padding-left:20px;margin-top:8px;">
+        <li><code>contracts/pvm_verifier/keys/verification_key.bin</code></li>
+        <li><code>contracts/pvm_zk_verifier/keys/verification_key.bin</code></li>
+      </ul>
+
+      <div class="callout warning">
+        <span class="callout-icon"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+        <span>After changing the circuit and re-running <code>vk-to-bin</code>, you must rebuild
+        and redeploy both Rust verifiers — the VK is embedded at compile time.</span>
+      </div>
+    </section>
+
+    <!-- PROOF-TO-BRIDGE -->
+    <section id="proof-to-bridge">
+      <h2>CLI: proof-to-bridge</h2>
+      <p>Converts snarkjs <code>proof.json</code> + <code>public.json</code> into a
+      <code>verifier-inputs.json</code> file the frontend can load directly.</p>
+
+      <pre><code>cargo run -- proof-to-bridge \
+  --proof-json /path/to/proof.json \
+  --public-json /path/to/public.json \
+  --vk-bin ../contracts/pvm_zk_verifier/keys/verification_key.bin \
+  --signals-config signals_config.json \
+  --write-frontend</code></pre>
+
+      <p>Output (<code>frontend/public/verifier-inputs.json</code>):</p>
+      <pre><code>{
+  <span class="str">"proofBytes"</span>:      <span class="str">"0x..."</span>,   <span class="comment">// 256-byte hex</span>
+  <span class="str">"nullifier"</span>:       <span class="str">"0x..."</span>,   <span class="comment">// bytes32 hex, LE</span>
+  <span class="str">"cooperativeHash"</span>: <span class="str">"0x..."</span>,   <span class="comment">// bytes32 hex, LE</span>
+  <span class="str">"validUntil"</span>:      <span class="str">"1740000000"</span>,
+  <span class="str">"currentTime"</span>:     <span class="str">"1739996400"</span>
+}</code></pre>
+    </section>
+
+    <!-- DATA ENCODING -->
+    <section id="data-encoding">
+      <h2>Data Encoding Reference</h2>
+
+      <h3>Proof Byte Format (256 bytes)</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Bytes</th><th>Content</th></tr></thead>
+          <tbody>
+            <tr><td><code>[0..64]</code></td><td><code>proof.a</code> — G1 compressed (BN254, Arkworks)</td></tr>
+            <tr><td><code>[64..192]</code></td><td><code>proof.b</code> — G2 compressed (BN254, Arkworks)</td></tr>
+            <tr><td><code>[192..256]</code></td><td><code>proof.c</code> — G1 compressed (BN254, Arkworks)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Public Inputs Layout (4 × 32 bytes, little-endian)</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Index</th><th>Field</th><th>Encoding</th></tr></thead>
+          <tbody>
+            <tr><td>0</td><td><code>nullifier</code></td><td>LE bytes32 (raw Fr field element)</td></tr>
+            <tr><td>1</td><td><code>cooperativeHash</code></td><td>LE bytes32 (raw Fr field element)</td></tr>
+            <tr><td>2</td><td><code>validUntil</code></td><td><code>_toLittleEndianBytes32(uint256)</code></td></tr>
+            <tr><td>3</td><td><code>currentTime</code></td><td><code>_toLittleEndianBytes32(uint256)</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>Little-endian is required because Arkworks' <code>CanonicalDeserialize</code> on <code>Fr</code>
+      expects LE byte order. The Solidity contract converts using an assembly loop that reverses bytes
+      from the EVM's native big-endian representation.</p>
+
+      <h3>Cross-VM Return Value</h3>
+      <p>The Polkavm contract returns a 32-byte right-padded ABI-encoded bool:</p>
+      <pre><code>0x0000000000000000000000000000000000000000000000000000000000000001  <span class="comment">// valid</span>
+0x0000000000000000000000000000000000000000000000000000000000000000  <span class="comment">// invalid</span></code></pre>
+    </section>
+
+    <!-- SECURITY -->
+    <section id="security">
+      <h2>Security Properties</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Property</th><th>Mechanism</th></tr></thead>
+          <tbody>
+            <tr><td>Proof expiry</td><td><code>block.timestamp &lt;= validUntil</code> in Solidity, before cross-VM call</td></tr>
+            <tr><td>Replay prevention</td><td>Nullifier stored in mapping; reverts on second submission</td></tr>
+            <tr><td>Proof validity</td><td>Groth16 pairing check in native Rust; <code>false</code> on any parse error</td></tr>
+            <tr><td>Spam resistance</td><td>Owner-configurable <code>verificationFee</code> (default 0)</td></tr>
+            <tr><td>Heap exhaustion</td><td>256 KiB calldata guard in Polkavm contract</td></tr>
+            <tr><td>Invalid VK</td><td>PVK cache returns <code>None</code>; verification returns <code>false</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- BENCHMARKS -->
+    <section id="benchmarks">
+      <h2>Benchmarks</h2>
+      <p>See <a href="../BENCHMARKS.md" style="color:var(--accent);">BENCHMARKS.md</a> for the full
+      methodology and publication policy.</p>
+
+      <pre><code><span class="comment"># Local Hardhat benchmarks (gas + wall-clock latency)</span>
+npm run bench
+npm run bench:summary
+
+<span class="comment"># Network benchmarks against a live testnet RPC</span>
+export BENCH_TRACER_ADDRESS=0x...
+export BENCH_REGISTRY_ADDRESS=0x...
+npm run bench:network:testnet
+npm run bench:summary:network</code></pre>
+
+      <div class="callout warning">
+        <span class="callout-icon"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+        <span>Local Hardhat benchmarks do <strong>not</strong> reflect cross-VM on-chain costs.
+        Always use network-level measurements before publishing performance claims.</span>
+      </div>
+    </section>
+
+  </div><!-- /content -->
+</main>
+
+<script>
+  // Sidebar active link on scroll
+  const sections = document.querySelectorAll('section[id]');
+  const links = document.querySelectorAll('.sidebar nav a');
+
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.sidebar nav a[href="#${e.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-40% 0px -55% 0px' });
+
+  sections.forEach(s => obs.observe(s));
+</script>
+
+</body>
+</html>
