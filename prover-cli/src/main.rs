@@ -20,12 +20,28 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Build the Polkavm contract and output a ready-to-deploy binary.
+    Build(BuildArgs),
     /// Explicit mock output for hackathon/demo flow.
     Generate(GenerateArgs),
     /// Convert snarkjs verification_key.json to compressed verification_key.bin.
     VkToBin(VkToBinArgs),
     /// Convert snarkjs proof/public inputs to frontend-contract bridge JSON.
     ProofToBridge(ProofToBridgeArgs),
+    /// Inspect a verification_key.json and public signals JSON, printing a
+    /// numbered index table.  Optionally emit a machine-readable signals config
+    /// for use with `proof-to-bridge --signals-config`.
+    DetectSignals(DetectSignalsArgs),
+}
+
+#[derive(Args, Debug)]
+struct BuildArgs {
+    /// Path to the snarkjs verification_key.json
+    #[arg(long)]
+    vk_json: PathBuf,
+    /// Destination path for the built pvm_zk_verifier binary
+    #[arg(long, default_value = "./pvm_zk_verifier.polkavm")]
+    out: PathBuf,
 }
 
 #[derive(Args, Debug)]
@@ -61,6 +77,11 @@ struct ProofToBridgeArgs {
     public_json: PathBuf,
     #[arg(long)]
     vk_bin: Option<PathBuf>,
+    /// Load index assignments from a signals config JSON produced by
+    /// `detect-signals --out-config`.  When provided, the individual
+    /// `--nullifier-index` etc. flags are ignored.
+    #[arg(long)]
+    signals_config: Option<PathBuf>,
     #[arg(long, default_value_t = 0)]
     nullifier_index: usize,
     #[arg(long, default_value_t = 1)]
@@ -73,6 +94,21 @@ struct ProofToBridgeArgs {
     out_json: Option<PathBuf>,
     #[arg(long, default_value_t = false)]
     write_frontend: bool,
+}
+
+#[derive(Args, Debug)]
+struct DetectSignalsArgs {
+    /// Path to the snarkjs verification_key.json.
+    #[arg(long)]
+    vk_json: PathBuf,
+    /// Optional path to the snarkjs public signals JSON.
+    /// When provided, signal values are printed alongside indices.
+    #[arg(long)]
+    public_json: Option<PathBuf>,
+    /// Write a machine-readable signals config JSON to this path.
+    /// The config can be fed to `proof-to-bridge --signals-config`.
+    #[arg(long)]
+    out_config: Option<PathBuf>,
 }
 
 #[derive(Serialize)]
@@ -88,18 +124,68 @@ struct BridgeOutput {
     current_time: String,
 }
 
+/// Machine-readable signals config written by `detect-signals --out-config`
+/// and consumed by `proof-to-bridge --signals-config`.
+#[derive(serde::Deserialize, Serialize, Debug)]
+struct SignalsConfig {
+    nullifier_index: usize,
+    cooperative_hash_index: usize,
+    valid_until_index: usize,
+    current_time_index: usize,
+}
+
 fn main() {
     let cli = Cli::parse();
     let result = match cli.command {
+        Commands::Build(args) => run_build(args),
         Commands::Generate(args) => run_generate(args),
         Commands::VkToBin(args) => run_vk_to_bin(args),
         Commands::ProofToBridge(args) => run_proof_to_bridge(args),
+        Commands::DetectSignals(args) => run_detect_signals(args),
     };
 
     if let Err(e) = result {
         eprintln!("error: {e}");
         std::process::exit(1);
     }
+}
+
+fn run_build(args: BuildArgs) -> Result<(), String> {
+    let vk_json = read_json_file(&args.vk_json)?;
+    let vk = parse_vk_from_snarkjs(&vk_json)?;
+
+    let mut buf = Vec::new();
+    vk.serialize_compressed(&mut buf)
+        .map_err(|e| format!("serialize vk: {e}"))?;
+
+    let pvm_verifier_vk = PathBuf::from("../contracts/pvm_verifier/keys/verification_key.bin");
+    let pvm_zk_verifier_vk = PathBuf::from("../contracts/pvm_zk_verifier/keys/verification_key.bin");
+
+    write_bytes_file(&pvm_verifier_vk, &buf)?;
+    write_bytes_file(&pvm_zk_verifier_vk, &buf)?;
+    println!("Updated verification keys.");
+
+    println!("Building Polkavm contract...");
+    let status = std::process::Command::new("cargo")
+        .arg("+nightly")
+        .arg("build")
+        .arg("--release")
+        .arg("-Z")
+        .arg("json-target-spec")
+        .current_dir("../contracts/pvm_zk_verifier")
+        .status()
+        .map_err(|e| format!("failed to execute cargo build: {e}"))?;
+
+    if !status.success() {
+        return Err(format!("cargo build failed with status: {status}"));
+    }
+
+    let build_out = PathBuf::from("../contracts/pvm_zk_verifier/target/riscv64emac-unknown-none-polkavm/release/pvm_zk_verifier");
+    fs::copy(&build_out, &args.out)
+        .map_err(|e| format!("failed to copy binary from {} to {}: {}", build_out.display(), args.out.display(), e))?;
+
+    println!("Success! Wrote Polkavm-ready binary to: {}", args.out.display());
+    Ok(())
 }
 
 fn run_generate(args: GenerateArgs) -> Result<(), String> {
@@ -165,6 +251,25 @@ fn run_proof_to_bridge(args: ProofToBridgeArgs) -> Result<(), String> {
     let proof_json = read_json_file(&args.proof_json)?;
     let public_json = read_json_file(&args.public_json)?;
 
+    // Resolve index assignments — signals-config overrides individual flags.
+    let (nullifier_idx, coop_hash_idx, valid_until_idx, current_time_idx) =
+        if let Some(cfg_path) = &args.signals_config {
+            let cfg = load_signals_config(cfg_path)?;
+            (
+                cfg.nullifier_index,
+                cfg.cooperative_hash_index,
+                cfg.valid_until_index,
+                cfg.current_time_index,
+            )
+        } else {
+            (
+                args.nullifier_index,
+                args.cooperative_hash_index,
+                args.valid_until_index,
+                args.current_time_index,
+            )
+        };
+
     let proof_root = proof_json.get("proof").unwrap_or(&proof_json);
     let proof = parse_proof_from_snarkjs(proof_root)?;
     let public_signals = parse_public_signals(&public_json)?;
@@ -178,17 +283,17 @@ fn run_proof_to_bridge(args: ProofToBridgeArgs) -> Result<(), String> {
     }
 
     let nullifier = public_signals
-        .get(args.nullifier_index)
-        .ok_or_else(|| "nullifier index out of bounds".to_string())?;
+        .get(nullifier_idx)
+        .ok_or_else(|| format!("nullifier_index {nullifier_idx} out of bounds (signals len={})", public_signals.len()))?;
     let cooperative_hash = public_signals
-        .get(args.cooperative_hash_index)
-        .ok_or_else(|| "cooperative hash index out of bounds".to_string())?;
+        .get(coop_hash_idx)
+        .ok_or_else(|| format!("cooperative_hash_index {coop_hash_idx} out of bounds"))?;
     let valid_until = public_signals
-        .get(args.valid_until_index)
-        .ok_or_else(|| "validUntil index out of bounds".to_string())?;
+        .get(valid_until_idx)
+        .ok_or_else(|| format!("valid_until_index {valid_until_idx} out of bounds"))?;
     let current_time = public_signals
-        .get(args.current_time_index)
-        .ok_or_else(|| "currentTime index out of bounds".to_string())?;
+        .get(current_time_idx)
+        .ok_or_else(|| format!("current_time_index {current_time_idx} out of bounds"))?;
 
     if let Some(vk_path) = &args.vk_bin {
         let vk_bytes = fs::read(vk_path)
@@ -226,6 +331,109 @@ fn run_proof_to_bridge(args: ProofToBridgeArgs) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// Inspect a `verification_key.json` and print the number of public signals
+/// and a numbered table of values (if `public.json` supplied).
+/// Optionally writes a `SignalsConfig` JSON for use with `proof-to-bridge`.
+fn run_detect_signals(args: DetectSignalsArgs) -> Result<(), String> {
+    let vk_json = read_json_file(&args.vk_json)?;
+
+    // Determine the number of public inputs from the IC array.
+    // In Groth16 the IC (gamma_abc_g1) has length n_public+1 (one extra for the
+    // constant "one" term), so n_public = IC.len() - 1.
+    let ic_key = if vk_json.get("IC").is_some() { "IC" } else { "vk_ic" };
+    let ic_arr = vk_json
+        .get(ic_key)
+        .and_then(Value::as_array)
+        .ok_or_else(|| format!("verification_key.json: missing '{ic_key}' array"))?;
+
+    let n_inputs = ic_arr.len().saturating_sub(1);
+    println!("Detected {n_inputs} public input(s) from IC array (len={}).", ic_arr.len());
+
+    // Optionally load and print side-by-side with public signal values.
+    let values: Option<Vec<String>> = if let Some(pub_path) = &args.public_json {
+        let public_json = read_json_file(pub_path)?;
+        let source = if public_json.is_array() {
+            public_json.clone()
+        } else {
+            public_json
+                .get("publicSignals")
+                .ok_or_else(|| "public_json must be an array or have 'publicSignals' key"
+                    .to_string())?
+                .clone()
+        };
+        let arr = source
+            .as_array()
+            .ok_or_else(|| "public_json must be a JSON array".to_string())?;
+
+        if arr.len() != n_inputs {
+            eprintln!(
+                "warning: public signals count ({}) does not match IC-derived count ({}).",
+                arr.len(),
+                n_inputs
+            );
+        }
+        Some(
+            arr.iter()
+                .map(|v| match v {
+                    Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                })
+                .collect(),
+        )
+    } else {
+        None
+    };
+
+    println!();
+    println!("{:>5}  {}", "Index", "Value");
+    println!("{}", "-".repeat(80));
+    for i in 0..n_inputs {
+        let val = values
+            .as_ref()
+            .and_then(|vs| vs.get(i))
+            .map(|s| s.as_str())
+            .unwrap_or("<not provided>");
+        println!("[{i:>3}]  {val}");
+    }
+    println!();
+
+    // Map well-known OIAP signal semantics to their expected default positions.
+    println!("Default OIAP signal index assignments:");
+    println!("  nullifier_index:        0");
+    println!("  cooperative_hash_index: 1");
+    println!("  valid_until_index:      2");
+    println!("  current_time_index:     3");
+    println!();
+    println!("Verify these match the values above. If not, pass explicit --*-index flags");
+    println!("to `proof-to-bridge`, or use --signals-config with a corrected config file.");
+
+    if let Some(out_path) = &args.out_config {
+        let cfg = SignalsConfig {
+            nullifier_index: 0,
+            cooperative_hash_index: 1,
+            valid_until_index: 2,
+            current_time_index: 3,
+        };
+        let json = serde_json::to_string_pretty(&cfg)
+            .map_err(|e| format!("failed to serialize config: {e}"))?;
+        write_text_file(out_path, &json)?;
+        println!("wrote signals config: {}", out_path.display());
+    }
+
+    Ok(())
+}
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+fn load_signals_config(path: &Path) -> Result<SignalsConfig, String> {
+    let text = fs::read_to_string(path)
+        .map_err(|e| format!("failed to read signals config {}: {e}", path.display()))?;
+    serde_json::from_str(&text)
+        .map_err(|e| format!("failed to parse signals config {}: {e}", path.display()))
 }
 
 fn read_json_file(path: &Path) -> Result<Value, String> {
