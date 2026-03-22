@@ -21,10 +21,10 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^6.1.2",
+    "@nomicfoundation/hardhat-toolbox": "^7.0.0",
     "dotenv": "^17.3.1",
     "ethers": "^6.16.0",
-    "hardhat": "^2.28.6",
+    "hardhat": "^3.2.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   },
