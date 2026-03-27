@@ -67,5 +67,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rust-src
+      - name: Install polkatool
+        run: cargo install polkatool --locked
       - name: Build pvm_zk_verifier
         run: npm run build:pvm-zk-verifier
