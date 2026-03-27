@@ -10,23 +10,32 @@
     "lint:frontend": "npm --prefix frontend run lint",
     "build:prover-cli": "cargo build --manifest-path prover-cli/Cargo.toml",
     "build:pvm-verifier": "cargo build --manifest-path contracts/pvm_verifier/Cargo.toml --target wasm32-unknown-unknown --no-default-features",
-    "build:pvm-zk-verifier": "bash -lc 'cd contracts/pvm_zk_verifier && cargo +nightly build --release -Z json-target-spec'",
+    "build:pvm-zk-verifier": "bash -lc 'export PATH=\"$HOME/.config/.foundry/bin:$HOME/.cargo/bin:$PATH\"; cd contracts/pvm_zk_verifier && cargo +nightly build --target $(polkatool get-target-json-path) --release -Z build-std=core,alloc -Z json-target-spec'",
     "bench": "npx hardhat run bench/run-bench.cjs",
     "bench:network:testnet": "npx hardhat run --network polkadotHubTestnet bench/run-bench-network.cjs",
     "bench:summary": "node bench/summarize.cjs",
     "bench:summary:network": "node bench/summarize.cjs --network",
+    "deploy:pvm": "bash scripts/deploy.sh testnet",
+    "deploy:pvm-binary": "PVM_BINARY=pvm_zk_verifier.polkavm npx hardhat run scripts/deploy-pvm-binary.cjs --network polkadotHubTestnet",
+    "deploy:contracts": "npx hardhat run scripts/deploy-contracts.cjs --network polkadotHubTestnet",
     "check:all": "npm run test:evm && npm run lint:frontend && npm run build:frontend && npm run build:prover-cli && npm run build:pvm-verifier && npm run build:pvm-zk-verifier"
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^6.1.2",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@parity/hardhat-polkadot-resolc": "^0.1.6",
     "dotenv": "^17.3.1",
     "ethers": "^6.16.0",
     "hardhat": "^2.28.6",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   },
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@polkadot-api/descriptors": "file:.papi/descriptors",
+    "@polkadot/api": "^16.5.6",
+    "polkadot-api": "^1.23.3"
+  }
 }
