@@ -7,8 +7,8 @@ export default {
   solidity: "0.8.20",
   networks: {
     polkadotHubTestnet: {
-      url: process.env.POLKADOT_HUB_TESTNET_RPC || "https://westend-asset-hub-eth-rpc.polkadot.io",
-      chainId: 420420420, 
+      url: process.env.POLKADOT_HUB_TESTNET_RPC || "https://eth-rpc-testnet.polkadot.io",
+      chainId: 420420417,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
     }
   }
