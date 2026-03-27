@@ -108,6 +108,7 @@ unsafe fn get_pvk() -> Option<&'static PreparedVerifyingKey<Bn254>> {
 
 /// Called by pallet-revive when an existing contract is invoked.
 #[no_mangle]
+#[polkavm_derive::polkavm_export]
 pub extern "C" fn call() {
     // Step 1: Read the calldata length from the host.
     let len = api::call_data_size() as usize;
@@ -161,6 +162,7 @@ pub extern "C" fn call() {
 
 /// Called by pallet-revive once when the contract is first deployed.
 #[no_mangle]
+#[polkavm_derive::polkavm_export]
 pub extern "C" fn deploy() {
     // No storage to initialise — VK is embedded at compile time.
 }

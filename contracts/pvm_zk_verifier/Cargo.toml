@@ -13,6 +13,10 @@ path = "src/main.rs"
 # pallet-revive host function bindings — real API surface from polkadot-sdk
 pallet-revive-uapi = { version = "0.7", default-features = false }
 
+# Required to register exported functions in the .polkavm_exports ELF section.
+# polkatool reads this section — #[no_mangle] alone is insufficient.
+polkavm-derive = { version = "0.27", default-features = false }
+
 # Heap allocator for no_std — required for Vec, alloc crate
 picoalloc = { version = "5.2", default-features = false }
 

@@ -676,6 +676,7 @@ dependencies = [
  "ark-serialize",
  "pallet-revive-uapi",
  "picoalloc",
+ "polkavm-derive",
 ]
 
 [[package]]
