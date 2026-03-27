@@ -165,12 +165,38 @@ cargo run -- generate --mock --secret 0x123 --cooperative 42 --epoch 1740000000
 
 ---
 
+## Deployed Contracts (Paseo Polkadot Hub Testnet)
+
+| Contract | Address | Network |
+|---|---|---|
+| PVM ZK Verifier (Rust/PolkaVM) | `0x0aB10B4AC477172C1bA41Dd73d759D1AC3FEE4d1` | Paseo Testnet |
+| OIAP_Tracer_Caller | `0x2C3aC8cf37411fAcA1B2E00C59eD52034869E079` | Paseo Testnet |
+| VerificationRegistry | `0xAAebf33707BeB7Df70488b3357A6535198A86B8B` | Paseo Testnet |
+
+---
+
 ## Deployment
 
+### Step 1 — Environment setup
+
 ```bash
-# Deploy to Polkadot Hub Testnet (Westend Asset Hub)
-# Requires PRIVATE_KEY and POLKADOT_HUB_TESTNET_RPC in .env
-bash scripts/deploy.sh
+cp .env.example .env
+# Fill in PRIVATE_KEY (must hold WND for gas)
+# Get WND: https://faucet.polkadot.io/ — select Westend Asset Hub
+```
+
+### Step 2 — Deploy the PVM Rust verifier
+
+```bash
+npm run deploy:pvm
+# Outputs: PVM verifier address — copy it to PVM_ADDRESS in .env
+```
+
+### Step 3 — Deploy the Solidity contracts
+
+```bash
+PVM_ADDRESS=0x<address-from-step-2> npm run deploy:contracts
+# Outputs: VerificationRegistry address — set as NEXT_PUBLIC_REGISTRY_ADDRESS in frontend/.env.local
 ```
 
 The frontend requires `NEXT_PUBLIC_REGISTRY_ADDRESS` pointing to the deployed `VerificationRegistry`.
