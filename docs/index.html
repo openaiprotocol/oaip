@@ -472,6 +472,7 @@
     <a href="#verification-registry">VerificationRegistry</a>
     <a href="#tracer-caller">TracerCaller</a>
     <a href="#pvm-verifier">PVM Verifier (Rust)</a>
+    <a href="#deployment">Deployment & Addresses</a>
 
     <div class="nav-section">CLI</div>
     <a href="#detect-signals">detect-signals</a>
@@ -620,6 +621,14 @@
           </tbody>
         </table>
       </div>
+
+      <h3 style="margin-top:32px;">Why Cross-VM Execution instead of Solidity?</h3>
+      <p>
+        The EVM conventionally handles zero-knowledge proof verification by either simulating cryptography natively in Solidity (prohibitively expensive) or relying on hardcoded precompiles (which lack support for modern curves and still cost hundreds of thousands of gas).
+      </p>
+      <p>
+        By routing the rigorous Groth16 pairings from an EVM registry seamlessly into a PolkaVM instance via <code>pallet-revive</code>, we execute the cryptography in a native Rust environment using highly-optimized libraries like <code>arkworks</code>. This allows us to achieve bare-metal cryptographic performance while retaining a familiar, frictionless developer experience in standard Solidity.
+      </p>
     </section>
 
     <!-- QUICK START -->
@@ -786,6 +795,26 @@ npm run check:all</code></pre>
         <li>ABI decoding is fully manual with bounds validation</li>
         <li>Returns <code>false</code> on any parse or verification error — never panics</li>
       </ul>
+    </section>
+
+    <!-- DEPLOYMENT -->
+    <section id="deployment">
+      <h2>Deployed Contracts</h2>
+      <p>The verifiable registry and cross-VM bridge are live on the <strong>Paseo Polkadot Hub TestNet</strong>.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Contract</th><th>Type</th><th>Address</th><th>Network</th></tr></thead>
+          <tbody>
+            <tr><td><code>pvm_zk_verifier</code></td><td>PolkaVM Binary</td><td><code>0x0aB10B4AC477172C1bA41Dd73d759D1AC3FEE4d1</code></td><td>Paseo Testnet (420420417)</td></tr>
+            <tr><td><code>OIAP_Tracer_Caller</code></td><td>EVM Bridge</td><td><code>0x2C3aC8cf37411fAcA1B2E00C59eD52034869E079</code></td><td>Paseo Testnet (420420417)</td></tr>
+            <tr><td><code>VerificationRegistry</code></td><td>EVM Registry</td><td><code>0xAAebf33707BeB7Df70488b3357A6535198A86B8B</code></td><td>Paseo Testnet (420420417)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout info">
+        <span class="callout-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
+        <span>To interact with the registry in your dApp, point your frontend to the <code>VerificationRegistry</code> address above and ensure your wallet is connected to the Paseo RPC.</span>
+      </div>
     </section>
 
     <!-- DETECT-SIGNALS -->
